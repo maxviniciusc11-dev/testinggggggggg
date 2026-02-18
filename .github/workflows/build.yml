@@ -1,0 +1,47 @@
+name: Build OpenSAMPLauncher
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 8
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Corrigir Repositórios Manualmente
+        run: |
+          # Substitui jcenter() por mavenCentral() em todos os arquivos .gradle
+          find . -name "*.gradle" -exec sed -i 's/jcenter()/mavenCentral()/g' {} +
+          # Adiciona google() e mavenCentral() no topo se não existirem
+          sed -i '1i repositories { google(); mavenCentral() }' build.gradle || true
+          # Atualiza a versão do Volley para uma que existe no MavenCentral
+          find . -name "*.gradle" -exec sed -i "s/com.android.volley:volley:1.1.0/com.android.volley:volley:1.2.1/g" {} +
+
+      - name: Aceitar Licenças Android
+        run: yes | sdkmanager --licenses || true
+
+      - name: Dar permissão ao Gradlew
+        run: find . -name gradlew -exec chmod +x {} +
+
+      - name: Compilar APK
+        run: |
+          GRADLEW_PATH=$(find . -name gradlew | head -n 1)
+          $GRADLEW_PATH assembleDebug --stacktrace --refresh-dependencies
+
+      - name: Salvar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenSAMP-Debug
+          path: "**/build/outputs/apk/debug/*.apk"
